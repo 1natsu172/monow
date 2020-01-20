@@ -1,4 +1,3 @@
-import path from "path";
 import notifier from "node-notifier";
 import { Middleware } from "redux";
 import { State } from "../state";
@@ -8,24 +7,22 @@ export const createMiddleware = ({
   allowNotify
 }: {
   allowNotify: boolean;
-}): Middleware<{}, State> => () => {
+}): Middleware<{}, State> => store => {
   return next => (action: Action) => {
     if (!allowNotify) {
       return next(action);
     }
 
-    if (action.type === "COMPILE_COMPLETED") {
+    if (action.type === "RUN_COMPLETED" || action.type === "RUN_ERROR") {
+      const { runningScript, error, packages } = store.getState();
       notifier.notify({
-        title: action.error ? "Build failed" : "Build successful",
-        message: path.relative(process.cwd(), action.dir)
+        title: error
+          ? `${runningScript} failed`
+          : `${runningScript} successful`,
+        message: action.dir.map(dir => packages[dir].package.name).join(", ")
       });
     }
-    if (action.type === "TEST_COMPLETED") {
-      notifier.notify({
-        title: action.error ? "Test failed" : "Test successful",
-        message: path.relative(process.cwd(), action.dir)
-      });
-    }
+
     return next(action);
   };
 };

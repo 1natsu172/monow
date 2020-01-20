@@ -1,9 +1,8 @@
 import { Package } from "./state";
 
-export const addPackage = (pkg: Package, logPath: string) => ({
+export const addPackage = (pkg: Package) => ({
   type: "ADD_PACKAGE" as const,
-  pkg,
-  logPath
+  pkg
 });
 
 export const makeReady = (dir: string) => ({
@@ -11,36 +10,35 @@ export const makeReady = (dir: string) => ({
   dir
 });
 
-export const startCompile = (dir: string) => ({
-  type: "COMPILE_STARTED" as const,
+export const requestRun = (dir: string[]) => ({
+  type: "RUN_REQUESTED" as const,
   dir
 });
 
-export const completeCompile = (dir: string, error: Error | null) => ({
-  type: "COMPILE_COMPLETED" as const,
+export const startRun = (dir: string[]) => ({
+  type: "RUN_STARTED" as const,
+  dir
+});
+
+export const completeRun = (dir: string[]) => ({
+  type: "RUN_COMPLETED" as const,
+  dir
+});
+
+export const enqueueRun = (dir: string[]) => ({
+  type: "RUN_QUEUED" as const,
+  dir
+});
+
+export const errorRun = (dir: string[], error: Error) => ({
+  type: "RUN_ERROR" as const,
   dir,
   error
 });
 
-export const enqueueCompile = (dir: string) => ({
-  type: "COMPILE_QUEUED" as const,
-  dir
-});
-
-export const runTest = (dir: string) => ({
-  type: "TEST_STARTED" as const,
-  dir
-});
-
-export const completeTest = (dir: string, error: Error | null) => ({
-  type: "TEST_COMPLETED" as const,
-  dir,
-  error
-});
-
-export const enqueueTest = (dir: string) => ({
-  type: "TEST_QUEUED" as const,
-  dir
+export const childTaskRun = (scriptName: string) => ({
+  type: "RUN_CHILD_TASK" as const,
+  scriptName
 });
 
 export const setSize = ({
@@ -58,10 +56,10 @@ export const setSize = ({
 export type Action =
   | ReturnType<typeof addPackage>
   | ReturnType<typeof makeReady>
-  | ReturnType<typeof startCompile>
-  | ReturnType<typeof completeCompile>
-  | ReturnType<typeof enqueueCompile>
-  | ReturnType<typeof runTest>
-  | ReturnType<typeof completeTest>
-  | ReturnType<typeof enqueueTest>
+  | ReturnType<typeof requestRun>
+  | ReturnType<typeof startRun>
+  | ReturnType<typeof completeRun>
+  | ReturnType<typeof enqueueRun>
+  | ReturnType<typeof errorRun>
+  | ReturnType<typeof childTaskRun>
   | ReturnType<typeof setSize>;

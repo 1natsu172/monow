@@ -8,19 +8,28 @@ import chalk from "chalk";
 import { headWordWrap, wordWrap, countLines } from "./lib/ansi";
 import { SubState, State } from "./store/state";
 import { Action } from "./store/action";
-import { getPackages, getWidth, getHeight } from "./store/selectors";
+import {
+  getPackages,
+  getWidth,
+  getHeight,
+  getError,
+  getLogPath,
+  getRunningScript
+} from "./store/selectors";
 
 type Props = {
   width: number;
   height: number;
   packages: SubState[];
+  error: Error | null;
+  logPath: string;
+  runningScript: string;
 };
 
 function renderIndicator({
   indicator,
   ready,
-  buildBusy,
-  testBusy,
+  busy,
   error
 }: SubState & { indicator: string }): string {
   if (error) {
@@ -29,7 +38,7 @@ function renderIndicator({
   if (!ready) {
     return chalk.dim(indicator);
   }
-  if (buildBusy || testBusy) {
+  if (busy) {
     return chalk.yellow(indicator);
   }
   return chalk.green(indicator);
@@ -37,32 +46,34 @@ function renderIndicator({
 
 function renderStatus({
   error,
-  buildBusy,
-  testBusy,
-  buildQueued,
-  testQueued,
-  package: pkg
-}: SubState): string {
+  busy,
+  queued,
+  package: pkg,
+  runningScript
+}: SubState & { runningScript: string }): string {
   if (error) {
     return chalk.red(pkg.name);
   }
-  if (buildBusy || testBusy) {
-    if (buildQueued || testQueued) {
-      return `${pkg.name} (queued)`;
-    }
-    return chalk.dim(pkg.name);
+  // TODO: ちゃんとステータスが描画されるようにする
+  const status = pkg.name;
+
+  if (busy) {
+    return chalk.dim(`${pkg.name}: ${runningScript}`);
+  }
+  if (queued) {
+    return `${pkg.name}: ${runningScript} (queued)`;
   }
   return pkg.name;
 }
 
-function renderLogPath({ error, logPath }: SubState): string {
+function renderLogPath(error: Error | null, logPath: string): string {
   const link = terminalLink.isSupported
     ? terminalLink(logPath, `file://${logPath}`)
     : logPath;
   return error ? `(saved to ${link})` : "";
 }
 
-function renderError({ error }: SubState): string {
+function renderError({ error }: { error: Error | null }): string {
   return error ? error.message.trim() || "" : "";
 }
 
@@ -100,42 +111,51 @@ function renderDivider({
 function renderErrorSummary({
   lines,
   width,
-  ...subState
-}: SubState & { width: number; lines: number }): string {
-  const { package: pkg } = subState;
-  const divider = renderDivider({ title: `Error: ${pkg.name}`, width });
+  error,
+  logPath
+}: {
+  width: number;
+  lines: number;
+  error: Error | null;
+  logPath: string;
+}): string {
+  const _logPath = renderLogPath(error, logPath);
+  const divider = renderDivider({ title: `Error: ${_logPath}`, width });
   const separator = EOL + divider + EOL;
   const separatorLines = countLines(separator);
   const log = headWordWrap(
-    renderError(subState),
+    renderError({ error }),
     width,
     lines - separatorLines
   );
 
-  return separator + chalk.red(log);
+  return error ? separator + chalk.red(log) : "";
 }
 
 export function render(props: Props): string {
-  const { width, height, packages } = props;
+  const { width, height, packages, error, logPath, runningScript } = props;
 
   const lines = packages
     .map(subState => ({
-      indicator: renderIndicator({ ...subState, indicator: figures.bullet }),
-      status: renderStatus(subState),
-      logPath: renderLogPath(subState)
+      indicator: renderIndicator({
+        ...subState,
+        indicator: figures.bullet
+      }),
+      status: renderStatus({ ...subState, runningScript })
     }))
-    .map(({ indicator, status, logPath }) => {
-      return `${indicator} ${status} ${logPath}`;
+    .map(({ indicator, status }) => {
+      return `${indicator} ${status}`;
     })
     .map(line => wordWrap(line, width));
 
   const linesCount = lines.reduce((acc, line) => acc + countLines(line), 0);
   const restLines = height - linesCount;
-  const erroredPackages = packages.filter(({ error }) => !!error);
-  const linesPerError = Math.floor(restLines / erroredPackages.length);
-  const errorSummaries = erroredPackages.map(subState =>
-    renderErrorSummary({ width, lines: linesPerError, ...subState })
-  );
+  const errorSummaries = renderErrorSummary({
+    width,
+    lines: restLines,
+    error,
+    logPath
+  });
 
   return lines.concat(errorSummaries).join(EOL);
 }
@@ -147,7 +167,17 @@ export const createRenderer = (store: Store<State, Action>) => () => {
     render({
       width: getWidth(state),
       height: getHeight(state),
-      packages: getPackages(state)
+      packages: getPackages(state),
+      error: getError(state),
+      logPath: getLogPath(state),
+      runningScript: getRunningScript(state)
     })
   );
+  // render({
+  //   width: getWidth(state),
+  //   height: getHeight(state),
+  //   packages: getPackages(state),
+  //   error: getError(state),
+  //   logPath: getLogPath(state)
+  // });
 };

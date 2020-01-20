@@ -2,14 +2,14 @@ import { FSWatcher } from "fs";
 import tmp from "tmp";
 import { createStore } from "../store";
 import { getPackages } from "../store/selectors";
+import { State } from "../store/state";
 import { watch } from "../watcher";
 import { createRenderer } from "../renderer";
 import { getIgnore } from "../lib/gitignore";
 import { getRootDir, getLernaPackages } from "../lib/lerna";
 import { reducer } from "../store/reducer";
 import * as actions from "../store/action";
-import { Compiler } from "../compiler";
-import { Tester } from "../tester";
+import { Runner } from "../runner";
 
 type Options = {
   buildScript: string;
@@ -20,32 +20,37 @@ type Options = {
 
 async function getStore(rootDir: string, options: Options) {
   const tty = process.stdout;
-  const compiler = new Compiler({ scriptName: options.buildScript });
-  const tester = new Tester({ scriptName: options.testScript });
+  const runner = new Runner({
+    scriptNames: [options.buildScript, options.testScript]
+  });
   const lernaPackages = await getLernaPackages(rootDir);
 
   const initialState = lernaPackages.reduce(
-    (state, pkg) => {
-      const { name: logPath } = tmp.fileSync({
-        template: `.monow-XXXXXX.log`
-      });
-      return reducer(state, actions.addPackage(pkg, logPath));
+    (state: State, pkg) => {
+      return reducer(state, actions.addPackage(pkg));
     },
     {
       size: {
         width: tty.columns!,
         height: tty.rows!
       },
-      packages: {}
+      packages: {},
+      rootDir,
+      runningScript: "",
+      error: null,
+      busyPackages: [],
+      queuedPackages: [],
+      errorPackages: [],
+      logPath: tmp.fileSync({
+        template: `.monow-XXXXXX.log`
+      }).name
     }
   );
 
   return createStore(initialState, {
-    compiler,
+    runner,
     tty,
-    runTests: options.runTests,
-    allowNotify: options.allowNotify,
-    tester
+    allowNotify: options.allowNotify
   });
 }
 
@@ -77,10 +82,11 @@ export async function main(cwd: string, options: Options) {
       if (ignore.ignores(filename)) {
         return;
       }
-      store.dispatch(actions.startCompile(pkg.location));
+      store.dispatch(actions.requestRun([pkg.location]));
     });
     watcher.on("error", (error: Error) => {
-      store.dispatch(actions.completeCompile(pkg.location, error));
+      store.dispatch(actions.errorRun([pkg.location], error));
+      store.dispatch(actions.completeRun([pkg.location]));
     });
     store.dispatch(actions.makeReady(pkg.location));
   }

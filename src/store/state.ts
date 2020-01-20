@@ -8,13 +8,10 @@ export type Package = {
 
 export type SubState = {
   ready: boolean;
-  buildQueued: boolean;
-  testQueued: boolean;
-  buildBusy: boolean;
-  testBusy: boolean;
-  error: Error | null;
-  logPath: string;
+  queued: boolean;
+  busy: boolean;
   package: Package;
+  error: Error | null;
 };
 
 export type State = {
@@ -25,4 +22,11 @@ export type State = {
   packages: {
     [dir: string]: SubState;
   };
+  rootDir: string;
+  logPath: string;
+  runningScript: string;
+  error: Error | null;
+  busyPackages: string[];
+  queuedPackages: string[];
+  errorPackages: string[];
 };

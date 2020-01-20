@@ -23,3 +23,7 @@ export async function getLernaPackages(rootDir: string): Promise<Package[]> {
 
   return Array.from(graph.values());
 }
+
+export function createScopeArguments(pkgNames: string[]) {
+  return pkgNames.map(name => `--scope="${name}"`);
+}

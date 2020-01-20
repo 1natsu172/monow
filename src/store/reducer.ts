@@ -7,7 +7,14 @@ const initialState: State = {
     width: -1,
     height: -1
   },
-  packages: {}
+  packages: {},
+  error: null,
+  rootDir: "",
+  busyPackages: [],
+  queuedPackages: [],
+  errorPackages: [],
+  logPath: "",
+  runningScript: ""
 };
 
 function reduce(draft: Draft<State>, action: Action) {
@@ -15,41 +22,47 @@ function reduce(draft: Draft<State>, action: Action) {
     case "ADD_PACKAGE":
       draft.packages[action.pkg.location] = {
         package: action.pkg,
-        logPath: action.logPath,
         ready: false,
-        buildBusy: false,
-        buildQueued: false,
-        testBusy: false,
-        testQueued: false,
+        busy: false,
+        queued: false,
         error: null
       };
       break;
     case "MAKE_READY":
       draft.packages[action.dir].ready = true;
       break;
-    case "COMPILE_STARTED":
-      draft.packages[action.dir].buildBusy = true;
-      draft.packages[action.dir].buildQueued = false;
-      draft.packages[action.dir].error = null;
+    case "RUN_STARTED":
+      draft.busyPackages = action.dir;
+      draft.queuedPackages = [];
+      draft.errorPackages = [];
+      draft.error = null;
+      for (const dir of action.dir) {
+        draft.packages[dir].busy = true;
+        draft.packages[dir].queued = false;
+        draft.packages[dir].error = null;
+      }
       break;
-    case "COMPILE_COMPLETED":
-      draft.packages[action.dir].buildBusy = false;
-      draft.packages[action.dir].error = action.error;
+    case "RUN_COMPLETED":
+      draft.busyPackages = [];
+      for (const dir of action.dir) {
+        draft.packages[dir].busy = false;
+      }
       break;
-    case "COMPILE_QUEUED":
-      draft.packages[action.dir].buildQueued = true;
+    case "RUN_QUEUED":
+      draft.queuedPackages = action.dir;
+      for (const dir of action.dir) {
+        draft.packages[dir].queued = true;
+      }
       break;
-    case "TEST_STARTED":
-      draft.packages[action.dir].testBusy = true;
-      draft.packages[action.dir].testQueued = false;
-      draft.packages[action.dir].error = null;
+    case "RUN_ERROR":
+      draft.error = action.error;
+      draft.errorPackages = action.dir;
+      for (const dir of action.dir) {
+        draft.packages[dir].error = action.error;
+      }
       break;
-    case "TEST_COMPLETED":
-      draft.packages[action.dir].testBusy = false;
-      draft.packages[action.dir].error = action.error;
-      break;
-    case "TEST_QUEUED":
-      draft.packages[action.dir].testQueued = true;
+    case "RUN_CHILD_TASK":
+      draft.runningScript = action.scriptName;
       break;
     case "RESIZED": {
       draft.size.width = action.width;
